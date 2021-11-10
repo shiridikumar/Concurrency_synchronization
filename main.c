@@ -22,12 +22,12 @@ int split(char *c, char **arr)
 int student_filled(int i){
     printf("student %d has filled in preferences for course registration\n",i);
     int pref_1=st[i].pref_1;
+    
 }
 
 int fill_slots(){
     pthread_t stu[num_students];
     for(int i=0;i<num_students;i++){
-        printf("%d\n",i);
         pthread_create(&stu[i],NULL,student_filled,(i));
 
     }

@@ -20,7 +20,6 @@ typedef struct{
     int pref_3;
     float time;
 }students;
-
 students *st;
 
 
