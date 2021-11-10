@@ -3,7 +3,7 @@
 #include <semaphore.h>
 #include <unistd.h>
 #include <string.h>
-#include  <stdlib.h>
+#include <stdlib.h>
 #include <time.h>
 
 int ch, cn, ca;
@@ -14,10 +14,17 @@ int spec_time;
 int num_groups;
 int *grp_num;
 int spec_exit = 0;
-int goals_done=0;
+int goals_done = 0;
+int done_h=0;
+int done_n=0;
+int done_a=0;
 pthread_mutex_t zone_mutex_h;
 pthread_mutex_t zone_mutex_a;
 pthread_mutex_t zone_mutex_n;
+pthread_cond_t h;
+pthread_cond_t n;
+pthread_cond_t a;
+
 int home_goals;
 int away_goals;
 typedef struct
@@ -48,6 +55,8 @@ typedef struct
     int num_goals;
     char zone[10];
     int entered;
+    int wait_start;
+    int got_seat;
 } spectators;
 
 spectators *sp;
@@ -85,6 +94,7 @@ int buy_H_ticket()
     int flag = 0;
     if (ch > 0)
     {
+        for(int i=0;i<1000000000;i++){}
         ch -= 1;
         pthread_mutex_unlock(&zone_mutex_h);
         return 1;
@@ -118,49 +128,99 @@ int buy_A_ticket()
     pthread_mutex_lock(&zone_mutex_a);
     int flag = 0;
     if (ca > 0)
-    {   ca -= 1;
+    {
+        ca -= 1;
         pthread_mutex_unlock(&zone_mutex_a);
         return 1;
     }
     else
-    {   pthread_mutex_unlock(&zone_mutex_a);
+    {
+        pthread_mutex_unlock(&zone_mutex_a);
         return 0;
     }
 }
 
 void spec_arrived(int i)
 {
-    printf("time =%d, %s has reached the staidum\n",(int)time_now(), sp[i].name);
+    for(int i=0;i<10000;i++){}
+    printf("time =%d, %s has reached the staidum\n", (int)time_now(), sp[i].name);
     int a;
-    if (strcmp(sp[i].zone,"H")==0)
+    if (strcmp(sp[i].zone, "H") == 0)
     {
+        if(done_h==0){
+            
+        }
         a = buy_H_ticket();
         if (a == 0)
-        {a = buy_N_ticket();}
-        if (a == 0)
-        { printf("time =%d, %s is waiting at the gate for the ticket\n", (int)time_now(),sp[i].name);}
+        {
+            a = buy_N_ticket();
+            if (a == 0)
+            {
+                printf("time =%d, %s could ot get a seat\n", (int)time_now(), sp[i].name);
+                sp[i].wait_start = (int)time_now();
+
+            }
+            else
+            {
+                printf("time =%d, %s has got a seat in zone %s\n", (int)time_now(), sp[i].name, "N");
+                sp[i].got_seat=1;
+            }
+        }
         else
-        {printf("time =%d, %s entered the stadium\n", (int)time_now(),sp[i].name);}
+        {
+            printf("time =%d, %s has got a seat in zone %s\n", (int)time_now(), sp[i].name, "H");
+            sp[i].got_seat=1;
+        }
     }
 
-    if (strcmp(sp[i].zone,"N")==0)
+    if (strcmp(sp[i].zone, "N") == 0)
     {
         a = buy_N_ticket();
         if (a == 0)
-        {a = buy_H_ticket();}
-        if (a == 0)
-        {a = buy_A_ticket();}
-        if (a == 0){printf("time =%d, %s is waiting at the gate for the ticket\n",(int)time_now(), sp[i].name);}
+        {
+            a = buy_H_ticket();
+            if (a == 0)
+            {
+                a = buy_A_ticket();
+                if (a == 0)
+                {
+                    printf("time =%d, %s could not get a seat\n", (int)time_now(), sp[i].name);
+                    sp[i].wait_start = (int)time_now();
+                }
+                else
+                {
+                    printf("time =%d, %s has got a seat in zone %s\n", (int)time_now(), sp[i].name, "A");
+                    sp[i].got_seat=1;
+                }
+            }
+            else
+            {
+                printf("time =%d, %s has got a seat in zone %s\n", (int)time_now(), sp[i].name, "H");
+                sp[i].got_seat=1;
+            }
+        }
         else
-        {printf("time =%d, %s entered the stadium\n",(int)time_now(), sp[i].name);}
+        {
+            printf("time =%d, %s has got a seat in zone %s\n", (int)time_now(), sp[i].name, "N");
+            sp[i].got_seat=1;
+        }
     }
 
-    if(strcmp(sp[i].zone,"A")==0){
-        a=buy_A_ticket();
-        if (a == 0){printf("time =%d, %s is waiting at the gate for the ticket\n",(int)time_now(), sp[i].name);}
+    if (strcmp(sp[i].zone, "A") == 0)
+    {
+        a = buy_A_ticket();
+        if (a == 0)
+        {
+            printf("time =%d, %s could not get a seat\n", (int)time_now(), sp[i].name);
+            sp[i].wait_start = (int)time_now();
+        }
         else
-        {printf("time =%d, %s entered the stadium\n", (int)time_now(),sp[i].name);}
+        {
+            printf("time =%d, %s has got a seat in zone %s\n", (int)time_now(), sp[i].name, "A");
+            sp[i].got_seat=1;
+        }
     }
+
 }
 
 void start_simulation()
@@ -179,49 +239,66 @@ void start_simulation()
             {
                 sp[i].entered = 1;
                 pthread_create(&spec[i], NULL, spec_arrived, (i));
-                spec_exit+=1;
+                spec_exit += 1;
             }
         }
     }
     for (int i = 0; i < total; i++)
     {
-            pthread_join(spec[i], NULL);
+        pthread_join(spec[i], NULL);
     }
 }
 
-
-void goals_simulation(){
+void goals_simulation()
+{
     int c;
-    while(goals_done!=goal_scoring){
-        for(int i=0;i<goal_scoring;i++){
-            for(int j=0;j<100000;j++){};
-            if(chances[i].time_elapsed==(int)time_now() && chances[i].done!=1){
-                int nt=(int)time_now();
-                float prob=chances[i].prob;
-                goals_done+=1;
-                chances[i].done=1;
+    while (goals_done != goal_scoring)
+    {
+        for (int i = 0; i < goal_scoring; i++)
+        {
+            if (chances[i].time_elapsed == (int)time_now() && chances[i].done != 1)
+            {
+                int nt = (int)time_now();
+                float prob = chances[i].prob;
+                goals_done += 1;
+                chances[i].done = 1;
                 srand(time(NULL));
-                int rand_int=rand()%(100);
-                if(rand_int<=(int)100*prob){
-                    if(strcmp("H",chances[i].team)==0){home_goals+=1;c=home_goals;}
-                    else{away_goals+=1;c=away_goals;}
-                    printf("time =%d, Team %s has scored their %d'th goal\n",nt,chances[i].team,c);
+                int rand_int = rand() % (100);
+                if (rand_int <= (int)100 * prob)
+                {
+                    if (strcmp("H", chances[i].team) == 0)
+                    {
+                        home_goals += 1;
+                        c = home_goals;
+                    }
+                    else
+                    {
+                        away_goals += 1;
+                        c = away_goals;
+                    }
+                    printf("time =%d, Team %s has scored their %d'th goal\n", nt, chances[i].team, c);
                 }
-                else{
-                    if(strcmp("H",chances[i].team)==0){c=home_goals;}
-                    else{c=away_goals;}
-                    printf("time =%d, Team %s has missed the chance to score the %d goal\n",nt,chances[i].team,c+1);
+                else
+                {
+                    if (strcmp("H", chances[i].team) == 0)
+                    {
+                        c = home_goals;
+                    }
+                    else
+                    {
+                        c = away_goals;
+                    }
+                    printf("time =%d, Team %s has missed the chance to score the %d goal\n", nt, chances[i].team, c + 1);
                 }
             }
         }
     }
-
 }
 
 int main()
 {
-    home_goals=0;
-    away_goals=0;
+    home_goals = 0;
+    away_goals = 0;
     scanf("%d %d %d", &ch, &ca, &cn);
     scanf("%d", &spec_time);
     scanf("%d", &num_groups);
@@ -238,6 +315,7 @@ int main()
             scanf("%s %s %d %d %d", sp[ind].name, sp[ind].zone, &sp[ind].time_entered, &sp[ind].patience, &sp[ind].num_goals);
             sp[ind].grp_num = i;
             sp[ind].entered = 0;
+            sp[ind].got_seat=0;
             ind++;
         }
         total += grp_num[i];
@@ -248,15 +326,14 @@ int main()
     for (int i = 0; i < goal_scoring; i++)
     {
         scanf("%s %d %f", chances[i].team, &chances[i].time_elapsed, &chances[i].prob);
-        chances[i].done=0;
+        chances[i].done = 0;
     }
     //printf("helloooooooo\n");
     spectators_sort();
     pthread_t spectators_mutex;
     pthread_t goals_mutex;
-    pthread_create(&spectators_mutex,NULL,start_simulation,NULL);
-    pthread_create(&goals_mutex,NULL,goals_simulation,NULL);
-    pthread_join(spectators_mutex,NULL);
-    pthread_join(goals_mutex,NULL);
-
+    pthread_create(&spectators_mutex, NULL, start_simulation, NULL);
+    pthread_create(&goals_mutex, NULL, goals_simulation, NULL);
+    pthread_join(spectators_mutex, NULL);
+    pthread_join(goals_mutex, NULL);
 }
