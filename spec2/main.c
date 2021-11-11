@@ -5,6 +5,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <time.h>
+pthread_cond_t a;
 
 int ch, cn, ca;
 int curr_ch;
@@ -94,8 +95,9 @@ int buy_H_ticket()
     int flag = 0;
     if (ch > 0)
     {
-        for(int i=0;i<1000000000;i++){}
         ch -= 1;
+        done_h=1;
+        pthread_cond_signal(&h);
         pthread_mutex_unlock(&zone_mutex_h);
         return 1;
     }
@@ -108,11 +110,13 @@ int buy_H_ticket()
 
 int buy_N_ticket()
 {
-    pthread_mutex_lock(&zone_mutex_n);
+     pthread_mutex_lock(&zone_mutex_n);
     int flag = 0;
     if (cn > 0)
     {
         cn -= 1;
+        done_n=1;
+        pthread_cond_signal(&n);
         pthread_mutex_unlock(&zone_mutex_n);
         return 1;
     }
@@ -130,7 +134,10 @@ int buy_A_ticket()
     if (ca > 0)
     {
         ca -= 1;
+        done_a=1;
+        pthread_cond_signal(&a);
         pthread_mutex_unlock(&zone_mutex_a);
+        done_a=0;
         return 1;
     }
     else
@@ -145,10 +152,14 @@ void spec_arrived(int i)
     for(int i=0;i<10000;i++){}
     printf("time =%d, %s has reached the staidum\n", (int)time_now(), sp[i].name);
     int a;
+    printf("%d %d %d\n",done_a,done_h,done_n);
     if (strcmp(sp[i].zone, "H") == 0)
     {
+            printf("%d %d %d\n",done_a,done_h,done_n);
         if(done_h==0){
-            
+            printf("blocking thread\n");
+            pthread_cond_wait(&h,&zone_mutex_h);
+            printf("unblocked\n");
         }
         a = buy_H_ticket();
         if (a == 0)
@@ -175,9 +186,18 @@ void spec_arrived(int i)
 
     if (strcmp(sp[i].zone, "N") == 0)
     {
+        if(done_n==0){
+            printf("waited for zoen a mutex\n");
+            pthread_mutex_lock(&zone_mutex_n);
+            pthread_cond_wait(&a,&zone_mutex_a);
+            printf("unblcoked thread after");
+        }
         a = buy_N_ticket();
         if (a == 0)
         {
+            if(done_a==0){
+                pthread_cond_wait(&a,&zone_mutex_a);
+            }
             a = buy_H_ticket();
             if (a == 0)
             {
