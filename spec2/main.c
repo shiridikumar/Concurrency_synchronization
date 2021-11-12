@@ -16,9 +16,9 @@ int num_groups;
 int *grp_num;
 int spec_exit = 0;
 int goals_done = 0;
-int done_h = 0;
-int done_n = 0;
-int done_a = 0;
+int done_h = 1;
+int done_n = 1;
+int done_a = 1;
 pthread_mutex_t zone_mutex_h;
 pthread_mutex_t zone_mutex_a;
 pthread_mutex_t zone_mutex_n;
@@ -96,8 +96,10 @@ int buy_H_ticket()
     int flag = 0;
     if (ch > 0)
     {
+        //for(int i=0;i<100000000;i++){
+        //}
         ch -= 1;
-        done_h = 1;
+        done_h=1;
         pthread_cond_signal(&h);
         pthread_mutex_unlock(&zone_mutex_h);
         return 1;
@@ -114,17 +116,20 @@ int buy_H_ticket()
 int buy_N_ticket()
 {
     pthread_mutex_lock(&zone_mutex_n);
+    done_n=0;
     int flag = 0;
     if (cn > 0)
     {
         cn -= 1;
         done_n = 1;
-        // pthread_cond_signal(&n);
+        pthread_cond_signal(&n);
         pthread_mutex_unlock(&zone_mutex_n);
         return 1;
     }
     else
     {
+        done_n=1;
+        pthread_cond_signal(&n);
         pthread_mutex_unlock(&zone_mutex_n);
         return 0;
     }
@@ -133,18 +138,21 @@ int buy_N_ticket()
 int buy_A_ticket()
 {
     pthread_mutex_lock(&zone_mutex_a);
+    done_a=0;
+
     int flag = 0;
     if (ca > 0)
     {
         ca -= 1;
         done_a = 1;
-        // pthread_cond_signal(&a);
+        pthread_cond_signal(&a);
         pthread_mutex_unlock(&zone_mutex_a);
-        done_a = 0;
         return 1;
     }
     else
     {
+        done_a=1;
+        pthread_cond_signal(&a);
         pthread_mutex_unlock(&zone_mutex_a);
         return 0;
     }
@@ -154,22 +162,22 @@ void spec_arrived(int i)
 {
     printf("time =%d, %s has reached the staidum\n", (int)time_now(), sp[i].name);
     int a;
-    // printf("%d %d %d\n",done_a,done_h,done_n);
     if (strcmp(sp[i].zone, "H") == 0)
     {
-        // printf("%d %d %d\n",done_a,done_h,done_n);
-        if (done_h == 0){
-            pthread_mutex_lock(&zone_mutex_h);
-            printf("blocking thread %d\n", i);
-            pthread_cond_wait(&h, &zone_mutex_h);
-            printf("unblocked %d\n", i);
-            pthread_mutex_unlock(&zone_mutex_h);
+        if(done_h==0){
+            printf("blocking thread H  %d %s\n",i,sp[i].name);
+            pthread_cond_wait(&h,&zone_mutex_h);
+            printf("Unblcoking thread H %d\n",i);
         }
-        a = buy_H_ticket();
+        else{a = buy_H_ticket();}
         if (a == 0)
         {
-
-            a = buy_N_ticket();
+            if(done_n==0){
+                printf("blcoking threead N %s %d\n",i,sp[i].name);
+                pthread_cond_wait(&n,&zone_mutex_n);
+                printf("unblocking thread N %d\n",i);
+            }
+            else{a = buy_N_ticket();}
             if (a == 0)
             {
                 printf("time =%d, %s could ot get a seat\n", (int)time_now(), sp[i].name);
@@ -190,27 +198,27 @@ void spec_arrived(int i)
 
     if (strcmp(sp[i].zone, "N") == 0)
     {
-        //if(done_n==0){
-        //  pthread_cond_wait(&a,&zone_mutex_a);
-        //}
+        if(done_n==0){
+            printf("blocking thread %d n %s\n",i,sp[i].name);
+            pthread_cond_wait(&n,&zone_mutex_n);
+            printf("unblocking thread\n");
+        }
         a = buy_N_ticket();
         if (a == 0)
         {
-            /* if(done_a==0){
-                pthread_cond_wait(&a,&zone_mutex_a);
-            }*/
-            if (done_h == 0)
-            {
-                pthread_mutex_lock(&zone_mutex_h);
-                printf("blocking thread %d\n", i);
-                pthread_cond_wait(&h, &zone_mutex_h);
-                printf("unblocked %d\n", i);
-                pthread_mutex_unlock(&zone_mutex_h);
+            if(done_h==0){
+                printf("blocking thread %d H\n",i);
+                pthread_cond_wait(&h,&zone_mutex_h);
+                printf("unblocking thread %d\n",i);
             }
             a = buy_H_ticket();
             if (a == 0)
             {
-                
+                if(done_a==0){
+                    printf("blocking thread %d a-- %s\n",i,sp[i].name);
+                    pthread_cond_wait(&a,&zone_mutex_a);
+                    printf("unblocking thread %d a\n",i);
+                }
                 a = buy_A_ticket();
                 if (a == 0)
                 {
@@ -238,6 +246,11 @@ void spec_arrived(int i)
 
     if (strcmp(sp[i].zone, "A") == 0)
     {
+        if(done_a==0){
+            printf("blocking thread %d a %s\n",i,sp[i].name);
+            pthread_cond_wait(&a,&zone_mutex_a);
+            printf("unblcoking thread\n");
+        }
         a = buy_A_ticket();
         if (a == 0)
         {
