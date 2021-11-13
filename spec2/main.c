@@ -19,9 +19,11 @@ int goals_done = 0;
 int done_h = 1;
 int done_n = 1;
 int done_a = 1;
+int *spec_reached;
 pthread_mutex_t zone_mutex_h;
 pthread_mutex_t zone_mutex_a;
 pthread_mutex_t zone_mutex_n;
+pthread_cond_t *spc;
 pthread_cond_t h;
 pthread_cond_t n;
 pthread_cond_t a;
@@ -58,6 +60,8 @@ typedef struct
     int entered;
     int wait_start;
     int got_seat;
+    int seat_time;
+    char got_zone[10];
 } spectators;
 
 spectators *sp;
@@ -157,111 +161,181 @@ int buy_A_ticket()
         return 0;
     }
 }
-
+ 
+void exit_stadium(char *zone){
+    if(strcmp("H",zone)==0){
+        pthread_mutex_lock(&zone_mutex_h);
+        done_h=0;
+        ch+=1;
+        done_h=1;
+        pthread_cond_signal(&h);
+        pthread_mutex_unlock(&zone_mutex_h);
+    }
+    if(strcmp("A",zone)==0){
+        pthread_mutex_lock(&zone_mutex_a);
+        done_a=0;
+        ca+=1;
+        done_a=1;
+        pthread_cond_signal(&a);
+        pthread_mutex_unlock(&zone_mutex_a);
+    }
+    if(strcmp("N",zone)==0){
+        pthread_mutex_lock(&zone_mutex_n);
+        done_n=0;
+        cn+=1;
+        done_n=1;
+        pthread_cond_signal(&n);
+        pthread_mutex_unlock(&zone_mutex_n);
+    }
+}
 void spec_arrived(int i)
 {
     printf("time =%d, %s has reached the staidum\n", (int)time_now(), sp[i].name);
+    sp[i].wait_start = (int)time_now();
     int a;
-    if (strcmp(sp[i].zone, "H") == 0)
-    {
-        if(done_h==0){
-            printf("blocking thread H  %d %s\n",i,sp[i].name);
-            pthread_cond_wait(&h,&zone_mutex_h);
-            printf("Unblcoking thread H %d\n",i);
+    while(sp[i].got_seat==0){
+        if((int)time_now()-sp[i].wait_start>sp[i].patience){
+            printf("time =%d, %s couldn't get a seat\n",(int)time_now(),sp[i].name);
+            break;
         }
-        else{a = buy_H_ticket();}
-        if (a == 0)
-        {
-            if(done_n==0){
-                printf("blcoking threead N %s %d\n",i,sp[i].name);
-                pthread_cond_wait(&n,&zone_mutex_n);
-                printf("unblocking thread N %d\n",i);
-            }
-            else{a = buy_N_ticket();}
-            if (a == 0)
-            {
-                printf("time =%d, %s could ot get a seat\n", (int)time_now(), sp[i].name);
-                sp[i].wait_start = (int)time_now();
-            }
-            else
-            {
-                printf("time =%d, %s has got a seat in zone %s\n", (int)time_now(), sp[i].name, "N");
-                sp[i].got_seat = 1;
-            }
-        }
-        else
-        {
-            printf("time =%d, %s has got a seat in zone %s\n", (int)time_now(), sp[i].name, "H");
-            sp[i].got_seat = 1;
-        }
-    }
-
-    if (strcmp(sp[i].zone, "N") == 0)
-    {
-        if(done_n==0){
-            printf("blocking thread %d n %s\n",i,sp[i].name);
-            pthread_cond_wait(&n,&zone_mutex_n);
-            printf("unblocking thread\n");
-        }
-        a = buy_N_ticket();
-        if (a == 0)
+        if (strcmp(sp[i].zone, "H") == 0)
         {
             if(done_h==0){
-                printf("blocking thread %d H\n",i);
+                printf("blocking thread H  %d %s\n",i,sp[i].name);
                 pthread_cond_wait(&h,&zone_mutex_h);
-                printf("unblocking thread %d\n",i);
+                printf("Unblcoking thread H %d\n",i);
             }
-            a = buy_H_ticket();
+            else{a = buy_H_ticket();}
             if (a == 0)
             {
-                if(done_a==0){
-                    printf("blocking thread %d a-- %s\n",i,sp[i].name);
-                    pthread_cond_wait(&a,&zone_mutex_a);
-                    printf("unblocking thread %d a\n",i);
+                if(done_n==0){
+                    printf("blcoking threead N %s %d\n",i,sp[i].name);
+                    pthread_cond_wait(&n,&zone_mutex_n);
+                    printf("unblocking thread N %d\n",i);
                 }
-                a = buy_A_ticket();
+                else{a = buy_N_ticket();}
                 if (a == 0)
                 {
-                    printf("time =%d, %s could not get a seat\n", (int)time_now(), sp[i].name);
-                    sp[i].wait_start = (int)time_now();
+                    int k=1;
                 }
                 else
                 {
-                    printf("time =%d, %s has got a seat in zone %s\n", (int)time_now(), sp[i].name, "A");
+                    printf("time =%d, %s has got a seat in zone %s\n", (int)time_now(), sp[i].name, "N");
                     sp[i].got_seat = 1;
+                    strcpy(sp[i].got_zone,"N");
+                    break;
                 }
             }
             else
             {
                 printf("time =%d, %s has got a seat in zone %s\n", (int)time_now(), sp[i].name, "H");
                 sp[i].got_seat = 1;
+                strcpy(sp[i].got_zone,"H");
+                break;
             }
         }
-        else
+
+        if (strcmp(sp[i].zone, "N") == 0)
         {
-            printf("time =%d, %s has got a seat in zone %s\n", (int)time_now(), sp[i].name, "N");
-            sp[i].got_seat = 1;
+            if(done_n==0){
+                printf("blocking thread %d n %s\n",i,sp[i].name);
+                pthread_cond_wait(&n,&zone_mutex_n);
+                printf("unblocking thread\n");
+            }
+            a = buy_N_ticket();
+            if (a == 0)
+            {
+                if(done_h==0){
+                    printf("blocking thread %d H\n",i);
+                    pthread_cond_wait(&h,&zone_mutex_h);
+                    printf("unblocking thread %d\n",i);
+                }
+                a = buy_H_ticket();
+                if (a == 0)
+                {
+                    if(done_a==0){
+                        printf("blocking thread %d a-- %s\n",i,sp[i].name);
+                        pthread_cond_wait(&a,&zone_mutex_a);
+                        printf("unblocking thread %d a\n",i);
+                    }
+                    a = buy_A_ticket();
+                    if (a == 0)
+                    {
+                        int k=1;
+                    }
+                    else
+                    {
+                        printf("time =%d, %s has got a seat in zone %s\n", (int)time_now(), sp[i].name, "A");
+                        sp[i].got_seat = 1;
+                        strcpy(sp[i].got_zone,"A");
+                        break;
+                    }
+                }
+                else
+                {
+                    printf("time =%d, %s has got a seat in zone %s\n", (int)time_now(), sp[i].name, "H");
+                    sp[i].got_seat = 1;
+                    strcpy(sp[i].got_zone,"H");
+                    break;
+                }
+            }
+            else
+            {
+                printf("time =%d, %s has got a seat in zone %s\n", (int)time_now(), sp[i].name, "N");
+                sp[i].got_seat = 1;
+                strcpy(sp[i].got_zone,"N");
+                break;
+            }
+        }
+        if (strcmp(sp[i].zone, "A") == 0)
+        {
+            if(done_a==0){
+                printf("blocking thread %d a %s\n",i,sp[i].name);
+                pthread_cond_wait(&a,&zone_mutex_a);
+                printf("unblcoking thread\n");
+            }
+            a = buy_A_ticket();
+            if (a == 0)
+            {
+                int k=1;
+            }
+            else
+            {
+                printf("time =%d, %s has got a seat in zone %s\n", (int)time_now(), sp[i].name, "A");
+                sp[i].got_seat = 1;
+                strcpy(sp[i].got_zone,"A");
+                break;
+            }
         }
     }
-
-    if (strcmp(sp[i].zone, "A") == 0)
-    {
-        if(done_a==0){
-            printf("blocking thread %d a %s\n",i,sp[i].name);
-            pthread_cond_wait(&a,&zone_mutex_a);
-            printf("unblcoking thread\n");
+    sp[i].seat_time=(int)time_now();
+    while(time_now()-sp[i].seat_time<spec_time){}
+    printf("%d %d %d\n",done_a,done_h,done_n);
+    if(sp[i].got_seat==1){
+        if(strcmp(sp[i].got_zone,"H")==0){
+            if(done_h==0){
+                printf("blocking thread h %d %s\n",i,sp[i].name);
+                pthread_cond_wait(&h,&zone_mutex_h);
+                printf("unblocking thread\n");
+            }
         }
-        a = buy_A_ticket();
-        if (a == 0)
-        {
-            printf("time =%d, %s could not get a seat\n", (int)time_now(), sp[i].name);
-            sp[i].wait_start = (int)time_now();
+        if(strcmp(sp[i].got_zone,"N")==0){
+            if(done_n==0){
+                printf("blocking thread n %d %s\n",i,sp[i].name);
+                pthread_cond_wait(&n,&zone_mutex_n);
+                printf("unblocking thread\n");
+            }
         }
-        else
-        {
-            printf("time =%d, %s has got a seat in zone %s\n", (int)time_now(), sp[i].name, "A");
-            sp[i].got_seat = 1;
+        if(strcmp(sp[i].got_zone,"A")==0){
+            if(done_a==0){
+                printf("blocking thread a %d %s\n",i,sp[i].name);
+                pthread_cond_wait(&a,&zone_mutex_a);
+                printf("unblocking thread\n");
+            }
         }
+        printf("helllo %s\n",sp[i].name);
+        exit_stadium(sp[i].got_zone);
+        printf("time =%d ,%s watched the match for %d seconds and is leaving\n",(int)time_now(),sp[i].name,spec_time);
     }
 }
 
@@ -349,6 +423,8 @@ int main()
     total = 0;
     int ind = 0;
     sp = (spectators *)malloc(num_groups * 1000 * sizeof(spectators));
+    spc=(pthread_cond_t *)malloc(num_groups*1000*sizeof(pthread_cond_t));
+    spec_reached=(int *)malloc(num_groups*1000*sizeof(int));
     for (int i = 0; i < num_groups; i++)
     {
         scanf("%d", &grp_num[i]);
@@ -358,6 +434,7 @@ int main()
             sp[ind].grp_num = i;
             sp[ind].entered = 0;
             sp[ind].got_seat = 0;
+            spec_reached[i]=0;
             ind++;
         }
         total += grp_num[i];
