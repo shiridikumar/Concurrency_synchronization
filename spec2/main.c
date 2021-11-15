@@ -5,11 +5,12 @@
 #include <string.h>
 #include <stdlib.h>
 #include <time.h>
+#include <errno.h>
+#include <math.h>
 
 sem_t zone_a;
 sem_t zone_h;
 sem_t zone_n;
-pthread_cond_t a;
 
 int ch, cn, ca;
 int curr_ch;
@@ -42,6 +43,7 @@ pthread_cond_t *spc;
 pthread_mutex_t h;
 pthread_mutex_t n;
 pthread_mutex_t a;
+int enter=0;
 
 int home_goals;
 int away_goals;
@@ -75,7 +77,7 @@ typedef struct
     int entered;
     int wait_start;
     int got_seat;
-    int seat_time;
+    double seat_time;
     char got_zone[10];
 } spectators;
 
@@ -99,276 +101,37 @@ void spectators_sort()
         }
     }
 }
-
-void update_zone()
+double time_now1()
 {
+    return (clock()-start_time)/(double)CLOCKS_PER_SEC;
 }
 int time_now()
 {
-    return (int)(clock() - start_time) / CLOCKS_PER_SEC;
+    double num=(clock()-start_time)/(double)CLOCKS_PER_SEC;
+    return (int)(num+0.5);
 }
 
-int buy_H_ticket()
-{
-    pthread_mutex_lock(&zone_mutex_h);
-    pthread_mutex_lock(&home);
-    done_h = 0;
-    int flag = 0;
-    if (ch > 0)
-    {
-        //for(int i=0;i<100000000;i++){
-        //}
-        ch -= 1;
-        done_h = 1;
-        home_num -= 1;
-        pthread_mutex_unlock(&home);
-        pthread_mutex_unlock(&zone_mutex_h);
-        return 1;
-    }
-    else
-    {
-        done_h = 1;
-        pthread_mutex_unlock(&home);
-        //pthread_mutex_unlock(&neutral);
-        pthread_mutex_unlock(&zone_mutex_h);
-        return 0;
-    }
-}
 
-int buy_N_ticket()
-{
-    pthread_mutex_lock(&zone_mutex_n);
-    pthread_mutex_lock(&neutral);
-    done_n = 0;
-    int flag = 0;
-    if (cn > 0)
-    {
-        cn -= 1;
-        done_n = 1;
-        neutral_num -= 1;
-   //     pthread_mutex_unlock(&home);
-        pthread_mutex_unlock(&neutral);
-   
-        pthread_mutex_unlock(&zone_mutex_n);
-        return 1;
-    }
-    else
-    {
-        done_n = 1;
-        //pthread_mutex_unlock(&home);
-        pthread_mutex_unlock(&neutral);
-        //pthread_mutex_unlock(&away);
-        pthread_mutex_unlock(&zone_mutex_n);
-        return 0;
-    }
-}
-
-int buy_A_ticket()
-{
-    pthread_mutex_lock(&zone_mutex_a);
-    pthread_mutex_lock(&away);
-    for (int i = 0; i < 10000000; i++)
-    {
-    }
-    done_a = 0;
-    int flag = 0;
-    if (ca > 0)
-    {
-        ca -= 1;
-        done_a = 1;
-        away_num -= 1;
-        //printf("exitting with allocating*******\n");
-        pthread_mutex_unlock(&away);
-        pthread_mutex_unlock(&zone_mutex_a);
-        return 1;
-    }
-    else
-    {
-        //printf("exittinf without alloting*************\n");
-        done_a = 1;
-        pthread_mutex_unlock(&away);
-        pthread_mutex_unlock(&zone_mutex_a);
-        return 0;
-    }
-}
-
-void exit_stadium_h()
-{
-    pthread_mutex_lock(&home);
-    pthread_mutex_lock(&neutral);
-    pthread_mutex_lock(&zone_mutex_h);
-    exit_h = 0;
-    done_h = 0;
-    ch += 1;
-    done_h = 1;
-    exit_h = 1;
-    home_num += 1;
-    neutral_num += 1;
-    pthread_cond_signal(&n);
-    pthread_cond_signal(&h);
-    pthread_mutex_unlock(&zone_mutex_h);
-    pthread_mutex_unlock(&home);
-    pthread_mutex_unlock(&neutral);
-}
-
-void exit_stadium_a()
-{
-    pthread_mutex_lock(&away);
-    pthread_mutex_lock(&zone_mutex_a);
-    exit_a = 0;
-    done_a = 0;
-    ca += 1;
-    away_num += 1;
-    exit_a = 1;
-    done_a = 1;
-    pthread_mutex_unlock(&zone_mutex_a);
-    pthread_cond_signal(&a);
-    pthread_cond_signal(&n);
-    pthread_mutex_unlock(&away);
-}
-
-void exit_stadium_n()
-{
-    pthread_mutex_lock(&home);
-    pthread_mutex_lock(&away);
-    pthread_mutex_lock(&neutral);
-    pthread_mutex_lock(&zone_mutex_n);
-    exit_n = 0;
-    done_n = 0;
-    cn += 1;
-    home_num += 1;
-    away_num += 1;
-    neutral_num += 1;
-    exit_n = 1;
-    done_n = 1;
-    pthread_cond_signal(&n);
-    pthread_cond_signal(&h);
-    pthread_mutex_unlock(&zone_mutex_n);
-    pthread_mutex_unlock(&away);
-    pthread_mutex_unlock(&home);
-    pthread_mutex_unlock(&neutral);
-}
 
 void spec_arrived(int i)
 {
-    int aval,hval,nval;
-    printf("time =%d, %s has reached the staidum\n", (int)time_now(), sp[i].name);
-    sp[i].wait_start = (int)time_now();
-    if(strcmp(sp[i].zone,"H")==0){
-        entry_H(i);
-    }
-    if(strcmp(sp[i].zone,"A")==0){
-        entry_A(i);
-    }
-    if(strcmp(sp[i].zone,"N")==0){
-
-        entry_N(i);
-    }
-    spec_exit+=1;
-
-    /*int a;
+    int aval, hval, nval;
+    printf("time =%d, %s has reached the staidum\n", (int)(time_now1()+0.5), sp[i].name);
+    sp[i].wait_start = sp[i].time_entered;
     if (strcmp(sp[i].zone, "H") == 0)
     {
-        pthread_mutex_lock(&home);
-        if (home_num <= 0)
-        {
-            printf("Blocked thread \n");
-            printf("%d\n", home_num);
-            pthread_cond_wait(&h, &home);
-            printf("unblocked thread \n");
-        }
-
-        pthread_mutex_unlock(&home);
-        a = buy_H_ticket();
-        if (a == 0)
-        {
-            a = buy_N_ticket();
-            if (a == 0)
-            {
-                printf("");
-            }
-            else
-            {
-                printf("time =%d, %s has got a seat in zone %s\n", (int)time_now(), sp[i].name, "N");
-                sp[i].got_seat = 1;
-                strcpy(sp[i].got_zone, "N");
-            }
-        }
-        else
-        {
-            printf("time =%d, %s has got a seat in zone %s\n", (int)time_now(), sp[i].name, "H");
-            sp[i].got_seat = 1;
-            strcpy(sp[i].got_zone, "H");
-        }
+        entry_H(i);
     }
-
+    if (strcmp(sp[i].zone, "A") == 0)
+    {
+        entry_A(i);
+    }
     if (strcmp(sp[i].zone, "N") == 0)
     {
-        pthread_mutex_lock(&neutral);
-        if (neutral_num <= 0)
-        {
-            printf("Blocked thread \n");
-            printf("%d\n", neutral_num);
-            pthread_cond_wait(&n, &neutral);
-            printf("Unblocked thread\n");
-        }
-        pthread_mutex_unlock(&neutral);
-
-        a = buy_N_ticket();
-        if (a == 0)
-        {
-            a = buy_H_ticket();
-            if (a == 0)
-            {
-                a = buy_A_ticket;
-                if (a == 0)
-                {
-                    printf("");
-                }
-                else
-                {
-                    printf("time =%d, %s has got a seat in zone %s\n", (int)time_now(), sp[i].name, "A");
-                    sp[i].got_seat = 1;
-                    strcpy(sp[i].got_zone, "A");
-                }
-            }
-            else
-            {
-                printf("time =%d, %s has got a seat in zone %s\n", (int)time_now(), sp[i].name, "H");
-                sp[i].got_seat = 1;
-                strcpy(sp[i].got_zone, "H");
-            }
-        }
-        else
-        {
-            printf("time =%d, %s has got a seat in zone %s\n", (int)time_now(), sp[i].name, "N");
-            sp[i].got_seat = 1;
-            strcpy(sp[i].got_zone, "N");
-        }
+        entry_N(i);
     }
-    if (strcmp(sp[i].zone,"A") == 0)
-    {
-        pthread_mutex_lock(&away);
-        if (away_num <= 0)
-        {
-            printf("Blocked thread\n");
-            printf("%d\n", away_num);
-            pthread_cond_wait(&a, &away);
-            printf("Unblocked thread\n");
-        }
-        pthread_mutex_unlock(&away);
-        a = buy_A_ticket();
-        if (a == 0)
-        {
-            printf("");
-        }
-        else
-        {
-            printf("time =%d, %s has got a seat in zone %s\n", (int)time_now(), sp[i].name, "A");
-            sp[i].got_seat = 1;
-            strcpy(sp[i].got_zone, "A");
-        }
-    }*/
+    spec_exit += 1;
+
 }
 
 void start_simulation()
@@ -381,9 +144,9 @@ void start_simulation()
     pthread_mutex_init(&a, NULL);
     pthread_mutex_init(&n, NULL);
     pthread_mutex_init(&home, NULL);
-    sem_init(&zone_h,0,ch+cn);
-    sem_init(&zone_a,0,ca);
-    sem_init(&zone_n,0,cn+ch+ca);
+    sem_init(&zone_h, 0, ch);
+    sem_init(&zone_a, 0, ca);
+    sem_init(&zone_n, 0, cn);
     pthread_mutex_init(&away, NULL);
     pthread_mutex_init(&neutral, NULL);
 
@@ -391,15 +154,19 @@ void start_simulation()
     start_time = clock();
     while (spec_exit != total)
     {
+        double nt=time_now1();
         for (int i = 0; i < total; i++)
         {
             //printf("%d %s %d\n",(int)time_now(),sp[i].name,sp[i].time_entered);
-            if ((int)time_now() == sp[i].time_entered && sp[i].entered != 1)
+            if (fabs(nt- (double)sp[i].time_entered)<=0.1 && sp[i].entered != 1)
             {
+                //printf("%f %d\n",nt,sp[i].time_entered);
+                enter+=1;
                 sp[i].entered = 1;
                 pthread_create(&spec[i], NULL, spec_arrived, (i));
             }
         }
+        //printf("sasdasdasdasda\n");
     }
     for (int i = 0; i < total; i++)
     {
@@ -412,11 +179,11 @@ void goals_simulation()
     int c;
     while (goals_done != goal_scoring)
     {
+        double nt = time_now1();
         for (int i = 0; i < goal_scoring; i++)
         {
-            if (chances[i].time_elapsed == (int)time_now() && chances[i].done != 1)
+            if (fabs(chances[i].time_elapsed-nt)<=0.1 && chances[i].done != 1)
             {
-                int nt = (int)time_now();
                 float prob = chances[i].prob;
                 goals_done += 1;
                 chances[i].done = 1;
@@ -434,7 +201,7 @@ void goals_simulation()
                         away_goals += 1;
                         c = away_goals;
                     }
-                    printf("time =%d, Team %s has scored their %d'th goal\n", nt, chances[i].team, c);
+                    printf("time =%d, Team %s has scored their %d'th goal\n", (int)(nt+0.5), chances[i].team, c);
                 }
                 else
                 {
@@ -446,121 +213,222 @@ void goals_simulation()
                     {
                         c = away_goals;
                     }
-                    printf("time =%d, Team %s has missed the chance to score the %d goal\n", nt, chances[i].team, c + 1);
+                    printf("time =%d, Team %s has missed the chance to score the %d goal\n", (int)(nt+0.5), chances[i].team, c + 1);
                 }
             }
         }
+        //printf("asdasda0000000\n");
     }
 }
 
-int entry_H(int i){
-    sem_wait(&zone_h);
-    pthread_mutex_lock(&h);
-    pthread_mutex_lock(&n);
-    if(home_num==0){
-        printf("time=%d ,%s got a seat in zone N\n",(int)time_now(),sp[i].name);
-        neutral_num-=1;
-        strcpy(sp[i].got_zone,"N");
+int entry_H(int i)
+{
+    int s;
+    double nt;
+    struct timespec ts;
+    if (clock_gettime(CLOCK_REALTIME, &ts) == -1)
+    {
+        return -1;
+    }
+
+    ts.tv_sec += (sp[i].patience);
+    s = sem_timedwait(&zone_h, &ts);
+    if (s == -1)
+    {
+        if (errno == ETIMEDOUT){
+            sleep(1);
+            printf("%d sem_timedwait() timed out %s\n",(int)(time_now1()),sp[i].name);
+            return;
+        } 
+        else{
+            printf("sem time wait succesful %d %s---\n",(int)(time_now1()+0.5),sp[i].name);
+        }
     }
     else{
-        printf("time=%d ,%s got a seat in zone H\n",(int)time_now(),sp[i].name);
-        home_num-=1;
-        strcpy(sp[i].got_zone,"H");
+        printf("timed wait not over %d %s---\n",(int)(time_now1()+0.5),sp[i].name);
     }
-    sp[i].seat_time=(int)time_now();
-    pthread_mutex_unlock(&h);
-    pthread_mutex_unlock(&n);
-    while ((int)time_now()-sp[i].seat_time<spec_time)
+    //sem_wait(&zone_h);
+    nt=time_now1();
+    pthread_mutex_lock(&h);
+    if (home_num > 0)
     {
-    }
-    printf("time=%d , %s watched the match for %d seconds and is leaving\n",(int)time_now(),sp[i].name,(int)time_now()-sp[i].seat_time);
-    if(strcmp(sp[i].got_zone,"H")==0){
-        pthread_mutex_lock(&h);
-        home_num+=1;
+        printf("time=%d ,%s got a seat in zone H\n", (int)(time_now1()+0.5), sp[i].name);
+        home_num -= 1;
+        strcpy(sp[i].got_zone, "N");
         pthread_mutex_unlock(&h);
     }
-    if(strcmp(sp[i].got_zone,"N")==0){
+    else
+    {
+        pthread_mutex_unlock(&h);
         pthread_mutex_lock(&n);
-        neutral_num+=1;
+        if (neutral_num > 0)
+        {
+            printf("time=%d ,%s got a seat in zone N\n", (int)(time_now1()+0.5), sp[i].name);
+            neutral_num -= 1;
+            strcpy(sp[i].got_zone, "N");
+            pthread_mutex_unlock(&n);
+        }
+        else
+        {
+            pthread_mutex_unlock(&n);
+        }
+    }
+    sp[i].seat_time =time_now1();
+    while (time_now1() - sp[i].seat_time < spec_time)
+    {
+    }
+    printf("time=%d, %s watched the match for %d seconds and is leaving\n", (int)(time_now1()+0.5), sp[i].name, (int)(time_now1()+0.5) - (int)(sp[i].seat_time+0.5));
+    if (strcmp(sp[i].got_zone, "H") == 0)
+    {
+        pthread_mutex_lock(&h);
+        home_num += 1;
+        pthread_mutex_unlock(&h);
+    }
+    if (strcmp(sp[i].got_zone, "N") == 0)
+    {
+        pthread_mutex_lock(&n);
+        neutral_num += 1;
         pthread_mutex_unlock(&n);
     }
     sem_post(&zone_h);
-
-    
 }
-int entry_A(int i){
-    pthread_mutex_lock(&a);
-    sem_wait(&zone_a);
-    printf("time=%d ,%s got a seat in zone A\n",(int)time_now(),sp[i].name);
-    away_num-=1;
-    strcpy(sp[i].got_zone,"A");
-    sp[i].seat_time=(int)time_now();
-    pthread_mutex_unlock(&a);
-    while ((int)time_now()-sp[i].seat_time<spec_time)
+int entry_A(int i)
+{
+    int s;
+    double nt=time_now1();
+    struct timespec ts;
+    if (clock_gettime(CLOCK_REALTIME, &ts) == -1)
     {
-        
+        return -1;
     }
-    printf("time=%d , %s watched the match for %d seconds and is leaving\n",(int)time_now(),sp[i].name,(int)time_now()-sp[i].seat_time);
-    if(strcmp(sp[i].got_zone,"A")==0){
+
+    ts.tv_sec += (sp[i].patience);
+    s = sem_timedwait(&zone_a, &ts);
+    if (s == -1)
+    {
+        if (errno == ETIMEDOUT){
+            sleep(1);
+            printf("%d sem_timedwait() timed out %s\n",(int)(time_now1()),sp[i].name);
+            return;
+        }
+        else{
+            printf("sem time wait succesful %d %s---\n",(int)(time_now1()+0.5),sp[i].name);
+        }
+    }
+    else{
+        printf("timed wait not over %d %s---\n",(int)(time_now1()+0.5),sp[i].name);
+    }
+    //sem_wait(&zone_a);
+    pthread_mutex_lock(&a);
+    printf("time=%d ,%s got a seat in zone A\n", (int)(time_now1()+0.5), sp[i].name);
+    away_num -= 1;
+    strcpy(sp[i].got_zone, "A");
+    sp[i].seat_time = time_now1();
+    pthread_mutex_unlock(&a);
+    while (time_now1() - sp[i].seat_time < spec_time)
+    {
+    }
+    //printf("time=%d , %s watched the match for %d seconds and is leaving\n", (int)time_now(), sp[i].name, (int)time_now() - sp[i].seat_time);
+    printf("time=%d , %s watched the match for %d seconds and is leaving\n", (int)(time_now1()+0.5), sp[i].name, (int)(time_now1()+0.5) - (int)(sp[i].seat_time+0.5));
+    if (strcmp(sp[i].got_zone, "A") == 0)
+    {
         pthread_mutex_lock(&a);
-        away_num+=1;
+        away_num += 1;
         pthread_mutex_unlock(&a);
     }
 
     sem_post(&zone_a);
 }
 
-int entry_N(int i){
-    sem_wait(&zone_n);
-    pthread_mutex_lock(&n);
-    pthread_mutex_lock(&h);
-    pthread_mutex_lock(&a);
-    if(neutral_num<=0){
-        if(home_num<=0){
-            if(away_num<=0){
-                printf("********* %s\n",sp[i].name);
-            }
-            else{
-                printf("time=%d ,%s got a seat in zone A--- %d\n",(int)time_now(),sp[i].name,away_num);
-                away_num-=1;
-                strcpy(sp[i].got_zone,"A");
-            }
+int entry_N(int i)
+{
+    double nt=time_now1();
+    int s;
+    struct timespec ts;
+    if (clock_gettime(CLOCK_REALTIME, &ts) == -1)
+    {
+        return -1;
+    }
+
+    ts.tv_sec += (sp[i].patience);
+    s = sem_timedwait(&zone_n, &ts);
+    if (s == -1)
+    {
+        if (errno == ETIMEDOUT){
+            sleep(1);
+            printf("%d sem_timedwait() timed out %s\n",(int)(time_now1()),sp[i].name);
+            return;
         }
         else{
-            printf("time=%d ,%s got a seat in zone H\n",(int)time_now(),sp[i].name);
-            home_num-=1;
-            strcpy(sp[i].got_zone,"H");
+            printf("sem time wait succesful %d %s---\n",(int)(time_now1()+0.5),sp[i].name);
         }
     }
     else{
-        printf("time=%d ,%s got a seat in zone N\n",(int)time_now(),sp[i].name);
-        neutral_num-=1;
-        strcpy(sp[i].got_zone,"N");
+        printf("timedwait not over %d %s---\n",(int)(time_now1()+0.5),sp[i].name);
     }
-    pthread_mutex_unlock(&h);
-    pthread_mutex_unlock(&a);
-    pthread_mutex_unlock(&n);
-    //printf("time=%d ,%s got a seat in zone N\n",(int)time_now(),sp[i].name);
-    sp[i].seat_time=(int)time_now();
-    while ((int)time_now()-sp[i].seat_time<spec_time)
+    //sem_wait(&zone_n);
+    //printf("%d\n",home_num+away_num+neutral_num);
+    pthread_mutex_lock(&n);
+    if (neutral_num > 0)
     {
-        
+        printf("time=%d ,%s got a seat in zone N\n", (int)(time_now1()+0.5), sp[i].name);
+        neutral_num -= 1;
+        strcpy(sp[i].got_zone, "N");
+        pthread_mutex_unlock(&n);
     }
-    
-    printf("time=%d , %s watched the match for %d seconds and is leaving\n",(int)time_now(),sp[i].name,(int)time_now()-sp[i].seat_time);
-    if(strcmp(sp[i].got_zone,"H")==0){
+    else
+    {
+        pthread_mutex_unlock(&n);
+        pthread_mutex_lock(&a);
+        if (away_num > 0)
+        {
+            printf("time=%d ,%s got a seat in zone A\n", (int)(time_now1()+0.5), sp[i].name);
+            away_num -= 1;
+            strcpy(sp[i].got_zone, "A");
+            pthread_mutex_unlock(&a);
+        }
+        else
+        {
+            pthread_mutex_unlock(&a);
+            pthread_mutex_lock(&h);
+            if (home_num > 0)
+            {
+                printf("time=%d ,%s got a seat in zone H\n", (int)(time_now1()+0.5), sp[i].name);
+                home_num -= 1;
+                strcpy(sp[i].got_zone, "H");
+                pthread_mutex_unlock(&h);
+            }
+            else
+            {
+                printf("************* %d %d %d\n",home_num,away_num,neutral_num);
+                pthread_mutex_unlock(&h);
+            }
+        }
+    }
+    //printf("time=%d ,%s got a seat in zone N\n",(int)time_now(),sp[i].name);
+    sp[i].seat_time =time_now1();
+    while (time_now1() - sp[i].seat_time < spec_time)
+    {
+    }
+
+   // printf("time=%d , %s watched the match for %d seconds and is leaving\n", (int)time_now(), sp[i].name, (int)time_now() - sp[i].seat_time);
+   printf("time=%d , %s watched the match for %d seconds and is leaving\n", (int)(time_now1()+0.5), sp[i].name, (int)(time_now1()+0.5) - (int)(sp[i].seat_time+0.5));
+    if (strcmp(sp[i].got_zone, "H") == 0)
+    {
         pthread_mutex_lock(&h);
-        home_num+=1;
+        home_num += 1;
         pthread_mutex_unlock(&h);
     }
-    if(strcmp(sp[i].got_zone,"A")==0){
+    if (strcmp(sp[i].got_zone, "A") == 0)
+    {
         pthread_mutex_lock(&a);
-        away_num+=1;
+        away_num += 1;
         pthread_mutex_unlock(&a);
     }
-    if(strcmp(sp[i].got_zone,"N")==0){
+    if (strcmp(sp[i].got_zone, "N") == 0)
+    {
         pthread_mutex_lock(&n);
-        neutral_num+=1;
+        neutral_num += 1;
         pthread_mutex_unlock(&n);
     }
     sem_post(&zone_n);
@@ -573,7 +441,7 @@ int main()
     scanf("%d", &spec_time);
     scanf("%d", &num_groups);
     away_num = ca;
-    home_num = ch ;
+    home_num = ch;
     neutral_num = cn;
     gp = (groups *)malloc(num_groups * sizeof(groups));
     grp_num = (int *)malloc(num_groups * sizeof(int));
