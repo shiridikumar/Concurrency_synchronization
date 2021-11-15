@@ -8,7 +8,7 @@ Ayush A 2 1 4
 4
 Rachit H 1 2 4
 Roshan N 2 1 -1
-Adarsh A 1 2 1
+Adarsh A 1 2 4
 Pranav N 3 1 -1
 5
 H 1 1
