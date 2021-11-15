@@ -8,6 +8,14 @@
 #include <errno.h>
 #include <math.h>
 
+#define RED     "\x1b[31m"
+#define GREEN   "\x1b[32m"
+#define YELLOW  "\x1b[33m"
+#define BLUE    "\x1b[34m"
+#define MAGENTA "\x1b[35m"
+#define CYAN    "\x1b[36m"
+#define RESET   "\x1b[0m"
+
 sem_t zone_a;
 sem_t zone_h;
 sem_t zone_n;
@@ -122,7 +130,7 @@ int time_now()
 void spec_arrived(int i)
 {
     int aval, hval, nval;
-    printf("time=%d, %s has reached the staidum\n", (int)(time_now1()+0.5), sp[i].name);
+    printf(YELLOW "time=%d, %s has reached the staidum\n" RESET, (int)(time_now1()+0.5), sp[i].name);
     sp[i].wait_start = sp[i].time_entered;
     if (strcmp(sp[i].zone, "H") == 0)
     {
@@ -214,7 +222,7 @@ void goals_simulation()
                         away_goals += 1;
                         c = away_goals;
                     }
-                    printf("time=%d, Team %s has scored their %d'th goal\n", (int)(nt+0.5), chances[i].team, c);
+                    printf(MAGENTA "time=%d, Team %s has scored their %d'th goal\n" RESET, (int)(nt+0.5), chances[i].team, c);
                     for(int k=0;k<total;k++){
                         if(strcmp(sp[k].zone,"H")==0){
                             if(sp[k].num_goals<=away_goals && sp[k].goaled_flag==0){
@@ -240,7 +248,7 @@ void goals_simulation()
                     {
                         c = away_goals;
                     }
-                    printf("time=%d, Team %s has missed the chance to score the %d goal\n", (int)(nt+0.5), chances[i].team, c + 1);
+                    printf(RED "time=%d, Team %s has missed the chance to score the %d goal\n" RESET, (int)(nt+0.5), chances[i].team, c + 1);
                 }
             }
         }
@@ -264,7 +272,7 @@ int entry_H(int i)
     {
         if (errno == ETIMEDOUT){
             sleep(1);
-            printf("time=%d, %s could not get a seat\n",(int)(time_now1()+0.5),sp[i].name);
+            printf(RED "time=%d, %s could not get a seat\n" RESET,(int)(time_now1()+0.5 ),sp[i].name);
             return;
         } 
     }
@@ -276,7 +284,7 @@ int entry_H(int i)
     pthread_mutex_lock(&h);
     if (home_num > 0)
     {
-        printf("time=%d, %s got a seat in zone H\n", (int)(time_now1()+0.5), sp[i].name);
+        printf(GREEN "time=%d, %s got a seat in zone H\n"RESET, (int)(time_now1()+0.5), sp[i].name);
         home_num -= 1;
         strcpy(sp[i].got_zone, "N");
         pthread_mutex_unlock(&h);
@@ -287,7 +295,7 @@ int entry_H(int i)
         pthread_mutex_lock(&n);
         if (neutral_num > 0)
         {
-            printf("time=%d, %s got a seat in zone N\n", (int)(time_now1()+0.5), sp[i].name);
+            printf(GREEN "time=%d, %s got a seat in zone N\n" RESET, (int)(time_now1()+0.5), sp[i].name);
             neutral_num -= 1;
             strcpy(sp[i].got_zone, "N");
             pthread_mutex_unlock(&n);
@@ -308,8 +316,8 @@ int entry_H(int i)
     if (s == -1)
     {
         if (errno == ETIMEDOUT){
-            printf("time=%d, %s watched the match for %d seconds and is leaving\n", (int)(time_now1()+0.5), sp[i].name, (int)(time_now1()+0.5) - (int)(sp[i].seat_time+0.5));
-            printf("time=%d, %s is leaving for dinner\n",(int)(time_now1()+0.5),sp[i].name);
+            printf(BLUE "time=%d, %s watched the match for %d seconds and is leaving\n" RESET, (int)(time_now1()+0.5), sp[i].name, (int)(time_now1()+0.5) - (int)(sp[i].seat_time+0.5));
+            printf(CYAN "time=%d, %s is leaving for dinner\n" RESET,(int)(time_now1()+0.5),sp[i].name);
             if (strcmp(sp[i].got_zone, "H") == 0)
             {
                 pthread_mutex_lock(&h);
@@ -338,8 +346,8 @@ int entry_H(int i)
         }
     }*/
         //printf("time=%d, %s watched the match for %d seconds and is leaving\n", (int)(time_now1()+0.5), sp[i].name, (int)(time_now1()+0.5) - (int)(sp[i].seat_time+0.5));
-        printf("time=%d, %s is leaving due to bad performance of his team\n",(int)(time_now1()+0.5),sp[i].name);
-        printf("time=%d, %s is leaving for dinner\n",(int)(time_now1()+0.5),sp[i].name);
+        printf(RED "time=%d, %s is leaving due to bad performance of his team\n" RESET,(int)(time_now1()+0.5),sp[i].name);
+        printf(CYAN "time=%d, %s is leaving for dinner\n" RESET,(int)(time_now1()+0.5),sp[i].name);
 
         if (strcmp(sp[i].got_zone, "H") == 0)
         {
@@ -373,7 +381,7 @@ int entry_A(int i)
     {
         if (errno == ETIMEDOUT){
             sleep(1);
-            printf("time=%d, %s could not get a seat\n",time_now1(),sp[i].name);
+            printf(RED "time=%d, %s could not get a seat\n" RESET,time_now1(),sp[i].name);
             return;
         }
         /*else{
@@ -385,7 +393,7 @@ int entry_A(int i)
     }*/
     //sem_wait(&zone_a);
     pthread_mutex_lock(&a);
-    printf("time=%d, %s got a seat in zone A\n", time_now1(), sp[i].name);
+    printf(GREEN "time=%d, %s got a seat in zone A\n" RESET, time_now1(), sp[i].name);
     away_num -= 1;
     strcpy(sp[i].got_zone, "A");
     sp[i].seat_time = time_now1();
@@ -400,8 +408,8 @@ int entry_A(int i)
     if (s == -1)
     {
         if (errno == ETIMEDOUT){
-            printf("time=%d, %s watched the match for %d seconds and is leaving\n", time_now1(), sp[i].name, (int)(time_now1()+0.5) - (int)(sp[i].seat_time+0.5));
-            printf("time=%d, %s is leaving for dinner\n",time_now1(),sp[i].name);
+            printf(BLUE "time=%d, %s watched the match for %d seconds and is leaving\n" RESET, time_now1(), sp[i].name, (int)(time_now1()+0.5) - (int)(sp[i].seat_time+0.5));
+            printf(CYAN "time=%d, %s is leaving for dinner\n" RESET,time_now1(),sp[i].name);
             if (strcmp(sp[i].got_zone, "A") == 0)
             {
                 pthread_mutex_lock(&a);
@@ -424,8 +432,8 @@ int entry_A(int i)
     }*/
     //printf("time=%d , %s watched the match for %d seconds and is leaving\n", (int)time_now(), sp[i].name, (int)time_now() - sp[i].seat_time);
         //printf("time=%d, %s watched the match for %d seconds and is leaving\n", (int)(time_now1()+0.5), sp[i].name, (int)(time_now1()+0.5) - (int)(sp[i].seat_time+0.5));
-        printf("time=%d, %s is leaving due to bad performance of his team\n",time_now1(),sp[i].name);
-        printf("time=%d, %s is leaving for dinner\n",time_now1(),sp[i].name);
+        printf(RED "time=%d, %s is leaving due to bad performance of his team\n" RESET,time_now1(),sp[i].name);
+        printf(CYAN "time=%d, %s is leaving for dinner\n" RESET,time_now1(),sp[i].name);
         if (strcmp(sp[i].got_zone, "A") == 0)
         {
             pthread_mutex_lock(&a);
@@ -454,7 +462,7 @@ int entry_N(int i)
     {
         if (errno == ETIMEDOUT){
             sleep(1);
-            printf("time=%d, %s could not get a seat\n",time_now1(),sp[i].name);
+            printf(RED "time=%d, %s could not get a seat\n" RESET,time_now1(),sp[i].name);
             return;
         }
         /*else{
@@ -469,7 +477,7 @@ int entry_N(int i)
     pthread_mutex_lock(&n);
     if (neutral_num > 0)
     {
-        printf("time=%d, %s got a seat in zone N\n", time_now1(), sp[i].name);
+        printf(GREEN "time=%d, %s got a seat in zone N\n" RESET, time_now1(), sp[i].name);
         neutral_num -= 1;
         strcpy(sp[i].got_zone, "N");
         pthread_mutex_unlock(&n);
@@ -480,7 +488,7 @@ int entry_N(int i)
         pthread_mutex_lock(&a);
         if (away_num > 0)
         {
-            printf("time=%d, %s got a seat in zone A\n", time_now1(), sp[i].name);
+            printf(GREEN "time=%d, %s got a seat in zone A\n" RESET, time_now1(), sp[i].name);
             away_num -= 1;
             strcpy(sp[i].got_zone, "A");
             pthread_mutex_unlock(&a);
@@ -491,7 +499,7 @@ int entry_N(int i)
             pthread_mutex_lock(&h);
             if (home_num > 0)
             {
-                printf("time=%d, %s got a seat in zone H\n", time_now1(), sp[i].name);
+                printf(GREEN "time=%d, %s got a seat in zone H\n" RESET, time_now1(), sp[i].name);
                 home_num -= 1;
                 strcpy(sp[i].got_zone, "H");
                 pthread_mutex_unlock(&h);
@@ -510,8 +518,8 @@ int entry_N(int i)
     }
 
    // printf("time=%d , %s watched the match for %d seconds and is leaving\n", (int)time_now(), sp[i].name, (int)time_now() - sp[i].seat_time);
-   printf("time=%d, %s watched the match for %d seconds and is leaving\n", (int)(time_now1()+0.5), sp[i].name, (int)(time_now1()+0.5) - (int)(sp[i].seat_time+0.5));
-   printf("time=%d, %s is leaving for dinner\n",time_now1(),sp[i].name);
+   printf(BLUE "time=%d, %s watched the match for %d seconds and is leaving\n" RESET, (int)(time_now1()+0.5), sp[i].name, (int)(time_now1()+0.5) - (int)(sp[i].seat_time+0.5));
+   printf(CYAN "time=%d, %s is leaving for dinner\n" RESET,time_now1(),sp[i].name);
     if (strcmp(sp[i].got_zone, "H") == 0)
     {
         pthread_mutex_lock(&h);
