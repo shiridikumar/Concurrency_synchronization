@@ -3,6 +3,7 @@
 #include <semaphore.h>
 #include <unistd.h>
 #include <string.h>
+#include <time.h>
 typedef struct{
     char course_name[200];
     float interest;
@@ -19,6 +20,7 @@ typedef struct{
     int pref_2;
     int pref_3;
     float time;
+    int filled;
 }students;
 students *st;
 
@@ -27,6 +29,15 @@ typedef struct{
     char lab_name[200];
     int num_ta;
     int max_num;
+    int curr_ta;
+    int nta;
 }labs;
 
 labs *lb;
+time_t seconds;
+long long start_time;
+int student_done=0;
+int *curr_course;
+int num_students,num_labs,num_courses;
+pthread_mutex_t student_mutex;
+sem_t *tut;

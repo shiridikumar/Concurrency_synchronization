@@ -41,6 +41,7 @@ int exit_a = 1;
 int exit_h = 1;
 int exit_n = 1;
 int *spec_reached;
+pthread_mutex_t ex;
 pthread_mutex_t zones;
 pthread_mutex_t home;
 pthread_mutex_t neutral;
@@ -144,7 +145,9 @@ void spec_arrived(int i)
     {
         entry_N(i);
     }
+    pthread_mutex_lock(&ex);
     spec_exit += 1;
+    pthread_mutex_unlock(&ex);
 
 }
 
