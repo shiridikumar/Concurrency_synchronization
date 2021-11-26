@@ -101,6 +101,28 @@ int student_filled(int i){
     int old=1;
     int curr_course=pref_1;
     while(st[i].done!=1){
+        if(cs[pref_1].found==-1){
+            printf(RED "Student %d has withdrawn from course %s\n" RESET,i,cs[pref_1].course_name);
+            if(old==1){
+                pref_1=st[i].pref_2;
+            }
+            else if(old==2){
+                pref_1=st[i].pref_3;
+            }
+            if(old<3){
+                printf(RED "Student %d has changed current preference from %s (priority %d) to %s (priority %d)\n" RESET,i,cs[curr_course].course_name,old,cs[pref_1].course_name,old+1);
+                old+=1;
+                curr_course=pref_1;
+            }
+            else{
+                printf("Student %d could not get any of his preferred courses\n",i);
+                st[i].done=1;
+                pthread_mutex_lock(&stud_total);
+                student_done+=1;
+                pthread_mutex_unlock(&stud_total);
+            }
+            continue;
+        }
         int prob1 =(rand()%cs[pref_1].max_slots)+1;
         pthread_mutex_lock(&cour_locks[pref_1]);
         if(cou[pref_1]!=1){
@@ -121,8 +143,7 @@ int student_filled(int i){
             cs[pref_1].curr_slots++;
             printf(GREEN "student %d has been allocated a seat in course %s\n" RESET,i,cs[pref_1].course_name);
             pthread_mutex_unlock(&cour_locks[pref_1]);
-            pthread_mutex_lock(&stud_total);
-            pthread_mutex_unlock(&stud_total);
+ 
             pthread_mutex_lock(&cond_locks[i]);
             pthread_cond_wait(&tutfin[pref_1],&cond_locks[i]);
             pthread_mutex_unlock(&cond_locks[i]);
@@ -133,7 +154,9 @@ int student_filled(int i){
             if(random<=interest_prob){
                 printf(RED "Student %d has selected the course %s permanently\n" RESET,i,cs[pref_1].course_name);
                 st[i].done=1;
+                pthread_mutex_lock(&stud_total);
                 student_done+=1;
+                pthread_mutex_unlock(&stud_total);
             }
             else{
                 printf(RED "Student %d has withdrawn from course %s\n" RESET,i,cs[pref_1].course_name);
@@ -149,7 +172,11 @@ int student_filled(int i){
                     curr_course=pref_1;
                 }
                 else{
-                    printf("Student i could not get any of his preferred courses\n");
+                    printf("Student %d could not get any of his preferred courses\n",i);
+                    st[i].done=1;
+                    pthread_mutex_lock(&stud_total);
+                    student_done+=1;
+                    pthread_mutex_unlock(&stud_total);
                 }
             }
         }
@@ -188,8 +215,10 @@ int conduct_tut(int ind){
                 if(lb[cs[ind].lab_ids[i]].tas[j]!=lb[cs[ind].lab_ids[i]].max_num && lb[cs[ind].lab_ids[i]].tas_avail[j]){
                     lb[cs[ind].lab_ids[i]].tas[j]++;
                     lb[cs[ind].lab_ids[i]].tas_avail[j]=0;
+                    pthread_mutex_lock(&cour_locks[ind]);
                     cs[ind].found=1;
-                    printf("TA %d from lab %s has been allocated to course %s for his %d'th TA ship\n",j+1,lb[cs[ind].lab_ids[i]].lab_name,cs[ind].course_name,lb[cs[ind].lab_ids[i]].tas[j]);
+                    pthread_mutex_unlock(&cour_locks[ind]);
+                    printf(GREEN "TA %d from lab %s has been allocated to course %s for his %d'th TA ship\n" RESET,j+1,lb[cs[ind].lab_ids[i]].lab_name,cs[ind].course_name,lb[cs[ind].lab_ids[i]].tas[j]);
                     break;
                 }
             }
@@ -198,25 +227,35 @@ int conduct_tut(int ind){
                 break;
             }
         }
-        pthread_mutex_lock(&cour_locks[ind]);
-        pthread_mutex_unlock(&cour_locks[ind]);
-        printf(YELLOW "course %s has been allocated %d seats\n" RESET,cs[ind].course_name,probs[ind]);
-        //sem_post(&stut[ind]);
-        pthread_cond_broadcast(&tutsearch[ind]);
-        printf(BLUE "Tutorial has been started for course %s with %d seats filled out of %d\n" RESET,cs[ind].course_name,cs[ind].curr_slots,probs[ind]);
-        pthread_mutex_lock(&cour_locks[ind]);
-        sleep(2);
-        cs[ind].found=0;
-        lb[cs[ind].lab_ids[i]].tas_avail[j]=1;
-        lb[cs[ind].lab_ids[i]].tas[j];
-        cs[ind].curr_slots=0;
-        cou[ind]=0;
-        pthread_mutex_unlock(&cour_locks[ind]);
-        //sem_post(&try[ind]);
-        //printf("qweqweqweqwe\n");
-        pthread_cond_broadcast(&tutfin[ind]);
-        pthread_cond_broadcast(&cond_var[ind]);
-        if(student_done==num_students){
+        if(cs[ind].found==1){
+            printf(YELLOW "course %s has been allocated %d seats\n" RESET,cs[ind].course_name,probs[ind]);
+            //sem_post(&stut[ind]);
+            pthread_cond_broadcast(&tutsearch[ind]);
+            printf(BLUE "Tutorial has been started for course %s with %d seats filled out of %d\n" RESET,cs[ind].course_name,cs[ind].curr_slots,probs[ind]);
+            pthread_mutex_lock(&cour_locks[ind]);
+            sleep(2);
+            cs[ind].found=0;
+            lb[cs[ind].lab_ids[i]].tas_avail[j]=1;
+            lb[cs[ind].lab_ids[i]].tas[j];
+            cs[ind].curr_slots=0;
+            cou[ind]=0;
+            pthread_mutex_unlock(&cour_locks[ind]);
+            //sem_post(&try[ind]);
+            //printf("qweqweqweqwe\n");
+            pthread_cond_broadcast(&tutfin[ind]);
+            pthread_cond_broadcast(&cond_var[ind]);
+            if(student_done==num_students){
+                break;
+            }
+        }
+        else{
+            pthread_cond_broadcast(&tutsearch[ind]);
+            pthread_cond_broadcast(&tutfin[ind]);
+            pthread_cond_broadcast(&cond_var[ind]);
+            pthread_mutex_lock(&cour_locks[ind]);
+            cs[ind].found=-1;
+            printf("Course %s does not have any TA mentors eligible and is removed from course offerings\n",cs[ind].course_name);
+            pthread_mutex_unlock(&cour_locks[ind]);
             break;
         }
     }
@@ -316,7 +355,7 @@ int main()
         lb[i].tas_avail=(int *)malloc(lb[i].num_ta*sizeof(int));
         for(int j=0;j<lb[i].num_ta;j++){
             lb[i].tas[j]=0;
-            lb[i].tas_avail[j]=0;
+            lb[i].tas_avail[j]=1;
         }
     }
     fill_slots();
