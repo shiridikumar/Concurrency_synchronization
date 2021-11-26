@@ -30,6 +30,7 @@ pthread_mutex_t *cond_locks;
 pthread_cond_t *cond_var;
 pthread_cond_t *tutsearch;
 pthread_mutex_t *studtut;
+pthread_cond_t *tutfin;
 courses *cs;
 int *cow;
 typedef struct{
@@ -71,6 +72,7 @@ pthread_t *cour_threads;
 int *probs;
 sem_t *stut;
 sem_t *try;
+pthread_mutex_t stud_total;
 int split(char *c, char **arr)
 {
     int coun = 0;
@@ -95,8 +97,10 @@ int student_filled(int i){
         printf("student %d has filled in preferences for course registration\n",i);
         st[i].gen=1;
     }
+    int pref_1=st[i].pref_1;
+    int old=1;
+    int curr_course=pref_1;
     while(st[i].done!=1){
-        int pref_1=st[i].pref_1;
         int prob1 =(rand()%cs[pref_1].max_slots)+1;
         pthread_mutex_lock(&cour_locks[pref_1]);
         if(cou[pref_1]!=1){
@@ -117,7 +121,37 @@ int student_filled(int i){
             cs[pref_1].curr_slots++;
             printf(GREEN "student %d has been allocated a seat in course %s\n" RESET,i,cs[pref_1].course_name);
             pthread_mutex_unlock(&cour_locks[pref_1]);
-            st[i].done=1;
+            pthread_mutex_lock(&stud_total);
+            pthread_mutex_unlock(&stud_total);
+            pthread_mutex_lock(&cond_locks[i]);
+            pthread_cond_wait(&tutfin[pref_1],&cond_locks[i]);
+            pthread_mutex_unlock(&cond_locks[i]);
+            int interest_prob=(int)(st[i].calibre*cs[pref_1].interest*100);
+            srand(time(NULL));
+            int random=rand()%100;
+            //printf("random****************** %d\n",random);
+            if(random<=interest_prob){
+                printf(RED "Student %d has selected the course %s permanently\n" RESET,i,cs[pref_1].course_name);
+                st[i].done=1;
+                student_done+=1;
+            }
+            else{
+                printf(RED "Student %d has withdrawn from course %s\n" RESET,i,cs[pref_1].course_name);
+                if(old==1){
+                    pref_1=st[i].pref_2;
+                }
+                else if(old==2){
+                    pref_1=st[i].pref_3;
+                }
+                if(old<3){
+                    printf(RED "Student %d has changed current preference from %s (priority %d) to %s (priority %d)\n" RESET,i,cs[curr_course].course_name,old,cs[pref_1].course_name,old+1);
+                    old+=1;
+                    curr_course=pref_1;
+                }
+                else{
+                    printf("Student i could not get any of his preferred courses\n");
+                }
+            }
         }
         else{
             //printf("%d---------------\n",i);
@@ -128,8 +162,6 @@ int student_filled(int i){
             pthread_mutex_unlock(&cond_locks[i]);
             //sem_wait(&try[pref_1]);
             //student_filled(i);
-            printf( RED "fuck off there is an error in code %d  %s curr %d %d\n" RESET,i,cs[pref_1].course_name,cs[pref_1].curr_slots,probs[pref_1]);
-
             //sem_post(&try[pref_1]);
         } 
         //printf("%d*****************\n",i);
@@ -147,12 +179,13 @@ int time_now(){
 int conduct_tut(int ind){
     while(student_done!=num_students){
         sleep(4);
+        //printf(RED "%s ******* %d ********* again ***\n" RESET,cs[ind].course_name,student_done);
         //sem_wait(&try[ind]);
         int i,j;
         for(i=0;i<cs[ind].num_labs;i++){
             pthread_mutex_lock(&lblock[cs[ind].lab_ids[i]]);
             for(j=0;j<lb[cs[ind].lab_ids[i]].num_ta;j++){
-                if(lb[cs[ind].lab_ids[i]].tas[j]!=lb[cs[ind].lab_ids[i]].max_num){// && lb[cs[ind].lab_ids[i]].tas_avail[j]){
+                if(lb[cs[ind].lab_ids[i]].tas[j]!=lb[cs[ind].lab_ids[i]].max_num && lb[cs[ind].lab_ids[i]].tas_avail[j]){
                     lb[cs[ind].lab_ids[i]].tas[j]++;
                     lb[cs[ind].lab_ids[i]].tas_avail[j]=0;
                     cs[ind].found=1;
@@ -161,24 +194,27 @@ int conduct_tut(int ind){
                 }
             }
             pthread_mutex_unlock(&lblock[cs[ind].lab_ids[i]]);
+            if(cs[ind].found==1){
+                break;
+            }
         }
         pthread_mutex_lock(&cour_locks[ind]);
         pthread_mutex_unlock(&cour_locks[ind]);
         printf(YELLOW "course %s has been allocated %d seats\n" RESET,cs[ind].course_name,probs[ind]);
         //sem_post(&stut[ind]);
         pthread_cond_broadcast(&tutsearch[ind]);
-        sleep(1);
         printf(BLUE "Tutorial has been started for course %s with %d seats filled out of %d\n" RESET,cs[ind].course_name,cs[ind].curr_slots,probs[ind]);
         pthread_mutex_lock(&cour_locks[ind]);
         sleep(2);
         cs[ind].found=0;
         lb[cs[ind].lab_ids[i]].tas_avail[j]=1;
-        lb[cs[ind].lab_ids[i]].tas[j]--;
+        lb[cs[ind].lab_ids[i]].tas[j];
         cs[ind].curr_slots=0;
         cou[ind]=0;
         pthread_mutex_unlock(&cour_locks[ind]);
         //sem_post(&try[ind]);
         //printf("qweqweqweqwe\n");
+        pthread_cond_broadcast(&tutfin[ind]);
         pthread_cond_broadcast(&cond_var[ind]);
         if(student_done==num_students){
             break;
@@ -196,7 +232,6 @@ int fill_slots(){
             if(st[i].time==nt && st[i].filled==0){
                 pthread_create(&stu[i],NULL,student_filled,(i));
                 st[i].filled=1;
-                student_done+=1;
             }
         }
     }
@@ -249,6 +284,7 @@ int main()
     cond_var=(pthread_cond_t *)malloc(num_courses*sizeof(pthread_cond_t));
     studtut=(pthread_mutex_t *)malloc(num_students*sizeof(pthread_mutex_t));
     tutsearch=(pthread_cond_t *)malloc(num_courses*sizeof(pthread_cond_t));
+    tutfin=(pthread_cond_t *)malloc(num_courses*sizeof(pthread_cond_t));
 
     for(int i=0;i<num_courses;i++){
         sem_init(&tut[i],0,1);
