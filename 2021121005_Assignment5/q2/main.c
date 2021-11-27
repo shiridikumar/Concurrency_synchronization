@@ -49,11 +49,15 @@ pthread_mutex_t away;
 pthread_mutex_t zone_mutex_h;
 pthread_mutex_t zone_mutex_a;
 pthread_mutex_t zone_mutex_n;
+pthread_mutex_t *grp_counts;
+int *grp_exits;
 
 pthread_cond_t *spc;
 pthread_mutex_t h;
 pthread_mutex_t n;
 pthread_mutex_t a;
+pthread_cond_t *grp_exit;
+pthread_mutex_t *ex_grp;
 int enter=0;
 
 int home_goals;
@@ -167,6 +171,7 @@ void start_simulation()
     pthread_mutex_init(&away, NULL);
     pthread_mutex_init(&neutral, NULL);
     specs=(sem_t *)malloc(total*sizeof(sem_t));
+    ex_grp=(pthread_mutex_t *)malloc(total*sizeof(pthread_mutex_t));
     for(int i=0;i<total;i++){
         sem_init(&specs[i],0,1);
         sem_wait(&specs[i]);
@@ -276,6 +281,13 @@ int entry_H(int i)
         if (errno == ETIMEDOUT){
             sleep(1);
             printf(RED "time=%d, %s could not get a seat\n" RESET,(int)(time_now1()+0.5 ),sp[i].name);
+            printf(CYAN "time=%d, %s is waiting for their friends at the exit gate\n" RESET,(int)(time_now1()+0.5),sp[i].name);
+            pthread_mutex_lock(&grp_counts[sp[i].grp_num]);
+            grp_exits[sp[i].grp_num]++;
+            if(grp_exits[sp[i].grp_num]==grp_num[sp[i].grp_num]){
+                printf("time=%d, Group %d is leaving for dinner\n",(int)(time_now1()+0.5),sp[i].grp_num+1);
+            }
+            pthread_mutex_unlock(&grp_counts[sp[i].grp_num]);
             return;
         } 
     }
@@ -320,7 +332,13 @@ int entry_H(int i)
     {
         if (errno == ETIMEDOUT){
             printf(BLUE "time=%d, %s watched the match for %d seconds and is leaving\n" RESET, (int)(time_now1()+0.5), sp[i].name, (int)(time_now1()+0.5) - (int)(sp[i].seat_time+0.5));
-            printf(CYAN "time=%d, %s is leaving for dinner\n" RESET,(int)(time_now1()+0.5),sp[i].name);
+            printf(CYAN "time=%d, %s is waiting for their friends at the exit gate\n" RESET,(int)(time_now1()+0.5),sp[i].name);
+            pthread_mutex_lock(&grp_counts[sp[i].grp_num]);
+            grp_exits[sp[i].grp_num]++;
+            if(grp_exits[sp[i].grp_num]==grp_num[sp[i].grp_num]){
+                printf("time=%d, Group %d is leaving for dinner\n",(int)(time_now1()+0.5),sp[i].grp_num+1);
+            }
+            pthread_mutex_unlock(&grp_counts[sp[i].grp_num]);
             if (strcmp(sp[i].got_zone, "H") == 0)
             {
                 pthread_mutex_lock(&h);
@@ -350,7 +368,14 @@ int entry_H(int i)
     }*/
         //printf("time=%d, %s watched the match for %d seconds and is leaving\n", (int)(time_now1()+0.5), sp[i].name, (int)(time_now1()+0.5) - (int)(sp[i].seat_time+0.5));
         printf(RED "time=%d, %s is leaving due to bad performance of his team\n" RESET,(int)(time_now1()+0.5),sp[i].name);
-        printf(CYAN "time=%d, %s is leaving for dinner\n" RESET,(int)(time_now1()+0.5),sp[i].name);
+
+        printf(CYAN "time=%d, %s is waiting for their friends at the exit gate\n" RESET,(int)(time_now1()+0.5),sp[i].name);
+        pthread_mutex_lock(&grp_counts[sp[i].grp_num]);
+            grp_exits[sp[i].grp_num]++;
+            if(grp_exits[sp[i].grp_num]==grp_num[sp[i].grp_num]){
+                printf("time=%d, Group %d is leaving for dinner\n",(int)(time_now1()+0.5),sp[i].grp_num+1);
+            }
+        pthread_mutex_unlock(&grp_counts[sp[i].grp_num]);
 
         if (strcmp(sp[i].got_zone, "H") == 0)
         {
@@ -384,7 +409,14 @@ int entry_A(int i)
     {
         if (errno == ETIMEDOUT){
             sleep(1);
-            printf(RED "time=%d, %s could not get a seat\n" RESET,time_now1(),sp[i].name);
+            printf(RED "time=%d, %s could not get a seat\n" RESET,(int)(time_now1()+0.5 ),sp[i].name);
+            printf(CYAN "time=%d, %s is waiting for their friends at the exit gate\n" RESET,(int)(time_now1()+0.5),sp[i].name);
+            pthread_mutex_lock(&grp_counts[sp[i].grp_num]);
+            grp_exits[sp[i].grp_num]++;
+            if(grp_exits[sp[i].grp_num]==grp_num[sp[i].grp_num]){
+                printf("time=%d, Group %d is leaving for dinner\n",(int)(time_now1()+0.5),sp[i].grp_num+1);
+            }
+            pthread_mutex_unlock(&grp_counts[sp[i].grp_num]);
             return;
         }
         /*else{
@@ -412,7 +444,13 @@ int entry_A(int i)
     {
         if (errno == ETIMEDOUT){
             printf(BLUE "time=%d, %s watched the match for %d seconds and is leaving\n" RESET, time_now1(), sp[i].name, (int)(time_now1()+0.5) - (int)(sp[i].seat_time+0.5));
-            printf(CYAN "time=%d, %s is leaving for dinner\n" RESET,time_now1(),sp[i].name);
+            printf(CYAN "time=%d, %s is waiting for their friends at the exit gate\n" RESET,time_now1(),sp[i].name);
+            pthread_mutex_lock(&grp_counts[sp[i].grp_num]);
+            grp_exits[sp[i].grp_num]++;
+            if(grp_exits[sp[i].grp_num]==grp_num[sp[i].grp_num]){
+                printf("time=%d, Group %d is leaving for dinner\n",(int)(time_now1()+0.5),sp[i].grp_num+1);
+            }
+            pthread_mutex_unlock(&grp_counts[sp[i].grp_num]);
             if (strcmp(sp[i].got_zone, "A") == 0)
             {
                 pthread_mutex_lock(&a);
@@ -436,14 +474,19 @@ int entry_A(int i)
     //printf("time=%d , %s watched the match for %d seconds and is leaving\n", (int)time_now(), sp[i].name, (int)time_now() - sp[i].seat_time);
         //printf("time=%d, %s watched the match for %d seconds and is leaving\n", (int)(time_now1()+0.5), sp[i].name, (int)(time_now1()+0.5) - (int)(sp[i].seat_time+0.5));
         printf(RED "time=%d, %s is leaving due to bad performance of his team\n" RESET,time_now1(),sp[i].name);
-        printf(CYAN "time=%d, %s is leaving for dinner\n" RESET,time_now1(),sp[i].name);
+        printf(CYAN "time=%d, %s is waiting for their friends at the exit gate\n" RESET,time_now1(),sp[i].name);
+        pthread_mutex_lock(&grp_counts[sp[i].grp_num]);
+            grp_exits[sp[i].grp_num]++;
+            if(grp_exits[sp[i].grp_num]==grp_num[sp[i].grp_num]){
+                printf("time=%d, Group %d is leaving for dinner\n",(int)(time_now1()+0.5),sp[i].grp_num+1);
+            }
+        pthread_mutex_unlock(&grp_counts[sp[i].grp_num]);
         if (strcmp(sp[i].got_zone, "A") == 0)
         {
             pthread_mutex_lock(&a);
             away_num += 1;
             pthread_mutex_unlock(&a);
         }
-
         sem_post(&zone_a);
     }
     return;
@@ -465,7 +508,14 @@ int entry_N(int i)
     {
         if (errno == ETIMEDOUT){
             sleep(1);
-            printf(RED "time=%d, %s could not get a seat\n" RESET,time_now1(),sp[i].name);
+            printf(RED "time=%d, %s could not get a seat\n" RESET,(int)(time_now1()+0.5 ),sp[i].name);
+            printf(CYAN "time=%d, %s is waiting for their friends at the exit gate\n" RESET,(int)(time_now1()+0.5),sp[i].name);
+            pthread_mutex_lock(&grp_counts[sp[i].grp_num]);
+            grp_exits[sp[i].grp_num]++;
+            if(grp_exits[sp[i].grp_num]==grp_num[sp[i].grp_num]){
+                printf("time=%d, Group %d is leaving for dinner\n",(int)(time_now1()+0.5),sp[i].grp_num+1);
+            }
+            pthread_mutex_unlock(&grp_counts[sp[i].grp_num]);
             return;
         }
         /*else{
@@ -521,8 +571,14 @@ int entry_N(int i)
     }
 
    // printf("time=%d , %s watched the match for %d seconds and is leaving\n", (int)time_now(), sp[i].name, (int)time_now() - sp[i].seat_time);
-   printf(BLUE "time=%d, %s watched the match for %d seconds and is leaving\n" RESET, (int)(time_now1()+0.5), sp[i].name, (int)(time_now1()+0.5) - (int)(sp[i].seat_time+0.5));
-   printf(CYAN "time=%d, %s is leaving for dinner\n" RESET,time_now1(),sp[i].name);
+    printf(BLUE "time=%d, %s watched the match for %d seconds and is leaving\n" RESET, (int)(time_now1()+0.5), sp[i].name, (int)(time_now1()+0.5) - (int)(sp[i].seat_time+0.5));
+    printf(CYAN "time=%d, %s is waiting for their friends at the exit gate\n" RESET,time_now1(),sp[i].name);
+    pthread_mutex_lock(&grp_counts[sp[i].grp_num]);
+    grp_exits[sp[i].grp_num]++;
+    if(grp_exits[sp[i].grp_num]==grp_num[sp[i].grp_num]){
+        printf("time=%d, Group %d is leaving for dinner\n",(int)(time_now1()+0.5),sp[i].grp_num+1);
+    }
+    pthread_mutex_unlock(&grp_counts[sp[i].grp_num]);
     if (strcmp(sp[i].got_zone, "H") == 0)
     {
         pthread_mutex_lock(&h);
@@ -559,9 +615,13 @@ int main()
     int ind = 0;
     sp = (spectators *)malloc(num_groups * 1000 * sizeof(spectators));
     spc = (pthread_cond_t *)malloc(num_groups * 1000 * sizeof(pthread_cond_t));
+    grp_exit=(pthread_cond_t *)malloc(num_groups*sizeof(pthread_cond_t));
+    grp_counts=(pthread_mutex_t *)malloc(num_groups*sizeof(pthread_mutex_t));
+    grp_exits=(int *)malloc(num_groups*sizeof(int));
     spec_reached = (int *)malloc(num_groups * 1000 * sizeof(int));
     for (int i = 0; i < num_groups; i++)
     {
+        grp_exits[i]=0;
         scanf("%d", &grp_num[i]);
         for (int j = 0; j < grp_num[i]; j++)
         {

@@ -25,6 +25,7 @@
 
 - for sample check you can run as "./a.out <input.txt"
 
+- **Implemented bonus** i.e, people leave for dinner only when all the members of the group leaves the stadium.
 
 ***
 **P shiridi kumar**
